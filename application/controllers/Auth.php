@@ -57,7 +57,11 @@ class Auth extends CI_Controller
                     //menyimpan data kedalam session
                     $this->session->set_userdata($data);
                     //kemudian arrahkan user ke view sesuai rolenya melalui controllernya
-                    redirect('user');
+                    if ($user['role_id'] == 1) {
+                        redirect('admin');
+                    } else {
+                        redirect('user');
+                    }
                 } else {
                     //jika user mengetikan password yang salah tampilkan pesan dan arahkan ke form login
                     $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
