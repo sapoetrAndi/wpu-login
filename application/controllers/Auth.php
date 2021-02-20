@@ -9,16 +9,78 @@ class Auth extends CI_Controller
         $this->load->library('form_validation');
     }
 
+
+
     public function index()
     {
-        $data['title'] = "Login";
-        $this->load->view('templates/auth_header', $data);
-        $this->load->view('auth/login');
-        $this->load->view('templates/auth_footer');
+        //validasi form login terlebih dahulu
+        $this->form_validation->set_rules('email', 'Email', 'trim|required|valid_email');
+        $this->form_validation->set_rules('password', 'Password', 'trim|required');
+
+
+        if ($this->form_validation->run() == false) {
+
+            $data['title'] = "Login";
+            $this->load->view('templates/auth_header', $data);
+            $this->load->view('auth/login');
+            $this->load->view('templates/auth_footer');
+        } else {
+
+            //jika validasinya success
+            $this->_login();
+        }
+    }
+
+
+
+    private function _login()
+    {
+        //ambil dulu email dan password yang sudah di validasi
+        $email = $this->input->post('email');
+        $password = $this->input->post('password');
+
+        $user = $this->db->get_where('user', ['email' => $email])->row_array(); //row_array berfungsi sebagai penampung data yang diambil agar di return sebagai array
+
+        if ($user) {
+            //jika usernya ada
+            if ($user['is_active'] == 1) {
+                //jika auser active
+                if (password_verify($password, $user['password'])) {
+                    //jika pssword dan emailnya benar
+
+                    //siapkan data terlebih dahulu dan simpan kedalam session
+                    $data = [
+                        'email' => $user['email'],
+                        'role_id' => $user['role_id']
+                    ];
+
+                    //menyimpan data kedalam session
+                    $this->session->set_userdata($data);
+                    //kemudian arrahkan user ke view sesuai rolenya melalui controllernya
+                    redirect('user');
+                } else {
+                    //jika user mengetikan password yang salah tampilkan pesan dan arahkan ke form login
+                    $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
+                    Wrong password!</div>');
+                    redirect('auth');
+                }
+            } else {
+                //jika user belum activasi tampilkan pesan dan arahkan ke form login
+                $this->session->set_flashdata('message', '<div class="alert alert-warning" role="alert">
+                Your email has not been activated!</div>');
+                redirect('auth');
+            }
+        } else {
+            //jika usernya tidak ada tampilkan pesan dan arahkan ke form login
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">
+            Email is not registered!</div>');
+            redirect('auth');
+        }
     }
 
     public function registration()
     {
+        //memvalidasi terlebih dahulu data yang di input ke dalam form
         $this->form_validation->set_rules('name', 'Name', 'required|trim');
         $this->form_validation->set_rules('email', 'Email', 'required|trim|valid_email|is_unique[user.email]', [
             'is_unique' => 'This email has already registered!'
@@ -28,14 +90,22 @@ class Auth extends CI_Controller
             'min_length' => 'Password too short!'
         ]);
         $this->form_validation->set_rules('password2', 'Password', 'required|matches[password1]');
+
+
+
         if ($this->form_validation->run() == false) {
+            //jika form validasi gagal, tampilkan halaman registrasi kembali  
             $data['title'] = "WPU User Registration";
+
+            //untuk menampilkan halaman
             $this->load->view('templates/auth_header', $data);
             $this->load->view('auth/registration');
             $this->load->view('templates/auth_footer');
         } else {
+            //menyiapkan data yang sudah divvalidasi sebelum di insert ke database
+            //data harus urut sesuai field table di database
             $data = [
-                'name' => htmlspecialchars($this->input->post('name', true)),
+                'name' => htmlspecialchars($this->input->post('name', true)), //argumen true untuk menghindari XSS (cross site scripting)
                 'email' => htmlspecialchars($this->input->post('email', true)),
                 'image' => htmlspecialchars('default.jpg'),
                 'password' => password_hash($this->input->post('password1'), PASSWORD_DEFAULT),
@@ -44,10 +114,24 @@ class Auth extends CI_Controller
                 'date_created' => time()
             ];
 
+            //note:  sebaiknya insert data menggunakan model tidak seperti dibawah ini
             $this->db->insert('user', $data);
             $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">
             Congratulation! your account has been created. Please Login!</div>');
             redirect('auth');
         }
+    }
+
+    public function logout()
+    {
+
+        //membersihkan session untuk logout
+        $this->session->unset_userdata('email');
+        $this->session->unset_userdata('role_id');
+
+        //setelah di unset arahkan ke form login dan beri pesan
+        $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">
+            You have been logged out!</div>');
+        redirect('auth');
     }
 }
